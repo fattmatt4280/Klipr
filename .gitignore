@@ -1,0 +1,18 @@
+# Klipr - never commit secrets, user data, or dumps.
+# Backups live on disk in backups/ (durable workspace), not in git.
+.env
+.env.*
+!.env.example
+.klipr_admin_token
+*.token
+storage/
+storage_staging/
+backups/
+*.sql
+*.dump
+crm/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
