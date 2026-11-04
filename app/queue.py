@@ -13,9 +13,19 @@ def _set_admin(cur):
     # their own id and app.is_admin='false', and RLS then limits them to own rows.
     cur.execute("SELECT set_config('app.is_admin', 'true', false)")
 
-def enqueue(conn, user_id, kind, payload, credit_cost=0, brand_id=None, project_id=None):
+def set_user_context(cur, user_id, is_admin=False):
+    # Step 6 library path: transaction-local, from the token, never from client input.
+    cur.execute("SELECT set_config('app.current_user_id', %s, true)", (str(user_id),))
+    cur.execute("SELECT set_config('app.is_admin', %s, true)", ("true" if is_admin else "false",))
+
+def enqueue(conn, user_id, kind, payload, credit_cost=0, brand_id=None, project_id=None, is_admin=False):
+    # Enqueue as the requesting user when is_admin is False, so RLS checks
+    # the job row against its owner. Admin enqueue is for trusted system jobs only.
     with conn.cursor() as cur:
-        _set_admin(cur)
+        if is_admin:
+            _set_admin(cur)
+        else:
+            set_user_context(cur, user_id, False)
         cur.execute("""INSERT INTO jobs (user_id, brand_id, project_id, kind, payload, credit_cost)
                        VALUES (%s,%s,%s,%s,%s::jsonb,%s) RETURNING id""",
                     (user_id, brand_id, project_id, kind, json.dumps(payload), credit_cost))
@@ -23,13 +33,14 @@ def enqueue(conn, user_id, kind, payload, credit_cost=0, brand_id=None, project_
     conn.commit(); return jid
 
 def claim_next(conn):
-    """Claim one queued job, honouring max_attempts. Returns row or None."""
+    """Claim one queued job, honouring max_attempts. Returns row or None.
+    Row: (id, kind, payload, attempts, max_attempts, credit_cost, user_id, brand_id, project_id)"""
     with conn.cursor() as cur:
         _set_admin(cur)
         cur.execute("""UPDATE jobs SET status='running', attempts=attempts+1, updated_at=now()
                        WHERE id=(SELECT id FROM jobs WHERE status='queued' AND attempts < max_attempts
                                  ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-                       RETURNING id, kind, payload, attempts, max_attempts, credit_cost, user_id""")
+                       RETURNING id, kind, payload, attempts, max_attempts, credit_cost, user_id, brand_id, project_id""")
         row = cur.fetchone()
     conn.commit(); return row
 

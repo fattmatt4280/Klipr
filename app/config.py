@@ -24,5 +24,6 @@ class Config:
     billing_enabled: bool = _bool(os.environ.get("KLIPR_BILLING_ENABLED"), False)
     crm_log_path: str = os.environ.get("KLIPR_CRM_LOG", "crm/events.jsonl")
     auth_token_file: str = os.environ.get("KLIPR_AUTH_TOKEN_FILE", ".klipr_admin_token")
+    user_token_file: str = os.environ.get("KLIPR_USER_TOKEN_FILE", ".klipr_user_tokens")
 
 CONFIG = Config()

@@ -53,6 +53,35 @@ class VideoAdapter:
                "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out]
         subprocess.run(cmd, check=True, capture_output=True, text=True)
         return out
+    def photo_motion_multi(self, sources, out, durations):
+        """Step 6: one 9:16 video from 3-6 photos, one zoompan segment per photo.
+        Each segment is rendered to a temp clip at 30fps, then concatenated
+        with the concat demuxer (same codec, same size, so no re-encode loss
+        beyond the first pass). Returns out. No generative model is called:
+        this is photo-motion from real photos only."""
+        import os, subprocess, tempfile
+        if not (3 <= len(sources) <= 6):
+            raise ValueError(f"photo_motion_multi needs 3-6 sources, got {len(sources)}")
+        if len(durations) != len(sources):
+            raise ValueError("durations must match sources")
+        with tempfile.TemporaryDirectory() as tmp:
+            clips = []
+            for idx, (src, dur) in enumerate(zip(sources, durations)):
+                clip = os.path.join(tmp, f"seg{idx}.mp4")
+                frames = max(1, int(round(float(dur) * 30)))
+                cmd = ["ffmpeg", "-y", "-loop", "1", "-i", src, "-vf",
+                       f"scale=1080:1920,zoompan=z='min(zoom+0.0015,1.3)':d={frames}:s=1080x1920:fps=30",
+                       "-t", str(float(dur)), "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                clips.append(clip)
+            lst = os.path.join(tmp, "list.txt")
+            with open(lst, "w") as f:
+                for c in clips:
+                    f.write(f"file '{c}'\n")
+            cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst,
+                   "-c", "copy", "-movflags", "+faststart", out]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return out
 
 class AvatarAdapter:
     def __init__(self, router): self.router = router

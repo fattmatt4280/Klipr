@@ -21,15 +21,30 @@ def run_once():
     conn = get_conn()
     row = queue.claim_next(conn)
     if not row: print("no queued jobs"); return False
-    jid, kind, payload, attempts, max_attempts, credit_cost, user_id = row
+    jid, kind, payload, attempts, max_attempts, credit_cost, user_id, brand_id, project_id = row
     try:
         if kind == "analyze":
             out = VisionAdapter(OpenRouterAdapter(CONFIG, CONFIG.crm_log_path)).analyze(payload, user_id=user_id, job_id=jid)
             log_event(CONFIG.crm_log_path, "job_done", user_id=str(user_id), job_id=str(jid), kind=kind, output=out)
+        elif kind in ("render", "render_photo_motion"):
+            from app.adapters import VideoAdapter
+            from app.storage import get_storage
+            from app import step6 as s6
+            pid = payload.get("project_id") or project_id
+            if not pid:
+                raise RuntimeError("render job missing project_id")
+            out = s6.render_project(conn, get_storage(CONFIG), VideoAdapter(OpenRouterAdapter(CONFIG, CONFIG.crm_log_path)), user_id, pid)
+            log_event(CONFIG.crm_log_path, "job_done", user_id=str(user_id), job_id=str(jid), kind=kind, output=out)
         else:
-            raise RuntimeError(f"unknown job kind for Phase 0 proof: {kind}")
+            raise RuntimeError(f"unknown job kind: {kind}")
         queue.finish(conn, jid, True); print(f"done {jid} {kind}"); return True
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            conn.rollback()
+        except Exception:
+            pass
         queue.finish(conn, jid, False, error=str(e)); print(f"failed {jid}: {e}"); return False
 
 if __name__ == "__main__":
