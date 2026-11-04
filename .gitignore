@@ -8,8 +8,8 @@
 storage/
 storage_staging/
 backups/
-*.sql
 *.dump
+# db/schema.sql is the source of truth and MUST stay tracked - dumps live in backups/ (ignored above), not in db/
 crm/
 __pycache__/
 *.pyc
