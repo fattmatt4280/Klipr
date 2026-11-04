@@ -1,0 +1,4 @@
+# Klipr 1A-LITE Step 0 - minimal dependencies.
+# Python 3.12, stdlib only except psycopg2 for Postgres.
+# ffmpeg is a system binary, not a pip package - install via apt on the host.
+psycopg2-binary>=2.9.9
