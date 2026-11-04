@@ -24,20 +24,25 @@ EXPECTED_PHASE0_TABLES = [
     "credit_ledger", "jobs",
 ]
 
+EXPECTED_1A_LITE_TABLES = [
+    "asset_relationships", "project_assets", "asset_usage",
+    "external_posts", "metric_snapshots", "inquiries",
+]
+
 
 class TestSchemaFile(unittest.TestCase):
-    def test_schema_file_exists_and_has_23_phase0_tables(self):
+    def test_schema_file_exists_and_has_29_tables(self):
+        # Merged 2026-11-04 after 1A-LITE spec approval: 23 Phase 0 + 6 1A-LITE.
         schema = (ROOT / "db" / "schema.sql").read_text()
         tables = re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", schema)
-        self.assertEqual(len(tables), 23, f"expected 23 tables, got {tables}")
-        for name in EXPECTED_PHASE0_TABLES:
+        self.assertEqual(len(tables), 29, f"expected 29 tables, got {tables}")
+        for name in EXPECTED_PHASE0_TABLES + EXPECTED_1A_LITE_TABLES:
             self.assertIn(name, tables, f"missing table {name}")
 
-    def test_1a_lite_tables_not_yet_applied(self):
-        # Step 0 only. Step 6 / schema diff must NOT be applied yet.
+    def test_1a_lite_tables_applied(self):
         schema = (ROOT / "db" / "schema.sql").read_text()
-        for name in ["external_posts", "metric_snapshots", "inquiries"]:
-            self.assertNotIn(f"CREATE TABLE IF NOT EXISTS {name}", schema)
+        for name in EXPECTED_1A_LITE_TABLES:
+            self.assertIn(f"CREATE TABLE IF NOT EXISTS {name}", schema)
 
     def test_schema_has_rls_enabled(self):
         schema = (ROOT / "db" / "schema.sql").read_text()
