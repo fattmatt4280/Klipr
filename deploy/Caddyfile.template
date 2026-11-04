@@ -1,0 +1,6 @@
+# Klipr API front door, Caddy template. Replace KLIPR_DOMAIN with your domain
+# (DNS must point to this VPS IP first). Caddy handles TLS automatically.
+# Do NOT expose port 8890 directly. The API itself enforces CORS + user tokens.
+KLIPR_DOMAIN {
+    reverse_proxy 127.0.0.1:8890
+}

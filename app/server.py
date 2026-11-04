@@ -5,6 +5,7 @@ Legacy Phase 0 (admin token or user token): GET /templates, GET /brands, GET /jo
 Step 6 (user token ONLY, never the admin token, never client-supplied user_id):
   POST /assets, POST /assets/<id>/activate, GET /assets,
   POST /projects, GET /projects, POST /projects/<id>/render, GET /renders,
+  GET /renders/<id>/file (download the finished MP4, user token only),
   POST /external_posts, GET /external_posts,
   POST /metric_snapshots, POST /inquiries, GET /weekly_report?brand_id=<uuid>
 Protected endpoints require: Authorization: Bearer <token>
@@ -68,6 +69,12 @@ class H(BaseHTTPRequestHandler):
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n) or b"{}")
+    def _send_file(self, file_path, filename):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        self.send_response(200); self._cors(); self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
     def do_OPTIONS(self):
         self.send_response(204); self._cors(); self.end_headers()
     def do_GET(self):
@@ -76,6 +83,26 @@ class H(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
         if path == "/health":
             return self._send(200, {"status": "ok", "env": CONFIG.env, "billing_enabled": CONFIG.billing_enabled, "phase": "6", "dww_mount": True})
+        # Step 6 render download: user token only, render must belong to the token user.
+        if path.startswith("/renders/") and path.endswith("/file"):
+            auth = self._auth_user()
+            if not auth: return self._send(401, {"error": "unauthorized: user token required"})
+            user_id, is_admin = auth
+            if is_admin: return self._send(403, {"error": "admin token cannot download another user's private renders via Step 6 endpoints"})
+            render_id = path.split("/")[2]
+            try:
+                conn = _conn()
+                with conn.cursor() as cur:
+                    s6.set_user_context(cur, user_id, False)
+                    cur.execute("SELECT file_path FROM renders WHERE id=%s AND user_id=%s", (render_id, user_id))
+                    row = cur.fetchone()
+                    if not row or not row[0]: return self._send(404, {"error": "render not found"})
+                    full = get_storage(CONFIG).get_path(row[0])
+                import os as _os
+                if not _os.path.exists(full): return self._send(404, {"error": "render file not found on backend storage"})
+                return self._send_file(full, f"render-{render_id}.mp4")
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
         # Step 6 reads: user token only
         if path in ("/assets", "/projects", "/renders", "/external_posts", "/weekly_report"):
             auth = self._auth_user()

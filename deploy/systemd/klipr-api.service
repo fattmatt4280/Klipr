@@ -1,0 +1,13 @@
+[Unit]
+Description=Klipr API (Step 6)
+After=network.target
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/klipr
+EnvironmentFile=/root/klipr/.env
+ExecStart=/root/klipr/.venv/bin/python -m app.server --port 8890 --host 127.0.0.1
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

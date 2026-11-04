@@ -1,0 +1,13 @@
+[Unit]
+Description=Klipr worker loop (Step 6)
+After=network.target klipr-api.service
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/klipr
+EnvironmentFile=/root/klipr/.env
+ExecStart=/bin/bash -c 'while true; do /root/klipr/.venv/bin/python -m app.worker --once || true; sleep 10; done'
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

@@ -134,6 +134,29 @@ def main():
             check("render is 1080x1920", s.get("width") == 1080 and s.get("height") == 1920, str(s))
         else:
             check("render file_path present", False)
+        # Download endpoint: user token ok, second user blocked, bogus token blocked
+        if render.get("id"):
+            import urllib.error
+            req = urllib.request.Request(BASE + f"/renders/{render['id']}/file", headers={"Authorization": f"Bearer {t1}"})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    dl = r.read()
+                    check("download render ok", r.status == 200 and r.headers.get("Content-Type") == "video/mp4" and len(dl) > 10000, f"status={r.status} bytes={len(dl)}")
+                    dl_path = os.path.join(tmp, "downloaded.mp4")
+                    with open(dl_path, "wb") as f:
+                        f.write(dl)
+                    pr2 = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", dl_path], capture_output=True, text=True)
+                    info2 = json.loads(pr2.stdout or "{}")
+                    s2 = (info2.get("streams") or [{}])[0]
+                    check("downloaded file is 1080x1920", s2.get("width") == 1080 and s2.get("height") == 1920, str(s2))
+            except urllib.error.HTTPError as e:
+                check("download render ok", False, f"HTTP {e.code}")
+            req2 = urllib.request.Request(BASE + f"/renders/{render['id']}/file", headers={"Authorization": f"Bearer {t2}"})
+            try:
+                urllib.request.urlopen(req2, timeout=30)
+                check("user2 cannot download user1 render", False)
+            except urllib.error.HTTPError as e:
+                check("user2 cannot download user1 render", e.code in (404, 403), f"HTTP {e.code}")
         # External post, metric, inquiry, weekly report
         if not render.get("id"):
             check("external_post skipped, no render", False)

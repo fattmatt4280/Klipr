@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Klipr Step 6 — DWW Validation UI</title>
+<style>body{font-family:system-ui,sans-serif;background:#0b0b0b;color:#eee;margin:0;padding:16px}h2{border-top:1px solid #333;padding-top:16px}input,select,textarea,button{font-size:16px;padding:10px;margin:4px 0;width:100%;box-sizing:border-box;background:#111;color:#eee;border:1px solid #333}button{background:#22c55e;border:0;color:#000;font-weight:700}button.secondary{background:#333;color:#eee}pre{background:#111;padding:12px;white-space:pre-wrap;word-break:break-word}label{color:#aaa;font-size:14px}small{color:#aaa}.asset{border:1px solid #333;padding:8px;margin:4px 0}.asset button{width:auto;padding:6px 10px}</style>
+</head><body>
+<h1>Klipr Step 6 — DWW validation UI</h1>
+<p>Thin UI only. This page contains NO Klipr pipeline code, NO database credentials, and NO secrets. It only calls the Klipr API over HTTPS. Klipr itself stays in its own repo. API base + user token are kept in sessionStorage only, cleared when this tab closes, never in code or localStorage. Use a <b>user token</b>, not the admin token — Step 6 endpoints reject the admin token.</p>
+<p><small>Validation note: uploads here use base64 JSON, which is fine for 3-6 phone photos under ~5 MB each for validation. A production Lovable build should use multipart / signed upload, not base64.</small></p>
+
+<h2>Setup</h2>
+<label>API base URL (https://…, no trailing slash)
+<input id="base" placeholder="https://klipr-api.example.com"></label>
+<label>User token (session only)
+<input id="tok" type="password" placeholder="User token for this session only"></label>
+<button onclick="saveSetup()">Save setup for this tab + load brands</button>
+<button class="secondary" onclick="checkHealth()">Check health (public)</button>
+<label>Brand
+<select id="brand"></select></label>
+<pre id="out">Not checked yet.</pre>
+
+<h2>1. Upload + activate</h2>
+<label>Photos (pick 3-6, photo kind only for render)
+<input id="files" type="file" multiple accept="image/*"></label>
+<label>Category
+<select id="cat"><option>source_photo</option><option>tattoo_documentation</option><option>shop_atmosphere</option><option>workstation_prep</option><option>equipment_closeup</option><option>gloved_hands</option><option>artist_working</option><option>cleaning_wiping</option></select></label>
+<label>Source origin
+<select id="origin"><option>authentic</option><option>synthetic</option></select></label>
+<label>Production method
+<select id="method"><option>original</option><option>enhanced</option><option>assembled</option></select></label>
+<p><small>Tattoo gate: synthetic assets can never be tattoo_documentation or needle_to_skin — the API will reject those.</small></p>
+<button onclick="uploadAll()">Upload selected photos (quarantined)</button>
+<button class="secondary" onclick="listAssets()">List my assets</button>
+<div id="assets"></div>
+
+<h2>2. Project + render</h2>
+<label>Hook type <input id="hook" value="color_flash"></label>
+<label>First frame <input id="firstframe" value="finished piece"></label>
+<label>Shot durations, comma list, seconds (one per selected asset, default 2 each)
+<input id="durations" value="2,2,2,2"></label>
+<label>Length (seconds) <input id="length" value="8"></label>
+<label>CTA keyword (must match the external post CTA later, for weekly report linking)
+<input id="cta" value="TESTCTA"></label>
+<label>Music <input id="music" value="none"></label>
+<label>Recipe name <input id="recipe" value="step6-test"></label>
+<p><small>Pick 3-6 <b>active</b> assets below, then Create project, then Render. Blueprint freezes once a project has a completed render.</small></p>
+<div id="projectAssets"></div>
+<button onclick="createProject()">Create project</button>
+<label>Project ID <input id="projectId" readonly></label>
+<button onclick="renderProject()">Render project</button>
+<label>Job ID <input id="jobId" readonly></label>
+<button class="secondary" onclick="checkJobs()">Check my jobs</button>
+<button class="secondary" onclick="listRenders()">List my renders</button>
+<div id="renders"></div>
+
+<h2>3. Post, metrics, inquiries</h2>
+<label>Render ID <input id="renderId"></label>
+<label>Platform
+<select id="platform"><option>instagram</option><option>tiktok</option><option>youtube</option><option>facebook</option></select></label>
+<label>Platform post ID (from the app you posted to, after you post manually)
+<input id="postId" placeholder="e.g. https://instagram.com/reel/... or post id"></label>
+<label>CTA keyword <input id="postCta" value="TESTCTA"></label>
+<button onclick="recordPost()">Record external post (manual)</button>
+<label>External post ID <input id="epId"></label>
+<label>Views <input id="views" type="number" value="0"></label>
+<label>Avg watch seconds <input id="watch" type="number" step="0.1" value="0"></label>
+<label>Completion rate 0-1 <input id="completion" type="number" step="0.01" value="0"></label>
+<label>Saves <input id="saves" type="number" value="0"></label>
+<label>Shares <input id="shares" type="number" value="0"></label>
+<button onclick="recordMetric()">Record metric snapshot</button>
+<label>Inquiry channel
+<select id="channel"><option>dm</option><option>comment</option><option>form</option><option>walk_in</option><option>referral</option></select></label>
+<label>Inquiry CTA <input id="inqCta" value="TESTCTA"></label>
+<label><input id="qualified" type="checkbox" style="width:auto"> Qualified</label>
+<label><input id="deposit" type="checkbox" style="width:auto"> Deposit taken</label>
+<label>Notes <input id="notes"></label>
+<button onclick="recordInquiry()">Record inquiry</button>
+
+<h2>4. Weekly report</h2>
+<button onclick="weeklyReport()">Weekly report for selected brand</button>
+<pre id="report"></pre>
+
+<script>
+function out(t){document.getElementById('out').textContent=t}
+function base(){return document.getElementById('base').value.trim().replace(/\/$/,'')}
+function tok(){return document.getElementById('tok').value.trim()}
+function brand(){return document.getElementById('brand').value}
+function saveSetup(){
+  sessionStorage.setItem('klipr_base', base());
+  sessionStorage.setItem('klipr_tok', tok());
+  loadBrands();
+}
+(function restore(){
+  document.getElementById('base').value = sessionStorage.getItem('klipr_base')||'';
+  document.getElementById('tok').value = sessionStorage.getItem('klipr_tok')||'';
+})();
+async function api(m,p,body,pub){
+  const r = await fetch(base()+p, {method:m, headers:{'Content-Type':'application/json', ...(pub?{}:{Authorization:'Bearer '+tok()})}, body: body?JSON.stringify(body):undefined});
+  const t = await r.text();
+  let j; try{j=JSON.parse(t)}catch(e){j={raw:t}}
+  out(m+' '+p+' → '+r.status+'\n'+JSON.stringify(j,null,2));
+  if(!r.ok) throw new Error(r.status+' '+t);
+  return j;
+}
+async function checkHealth(){ try{ await api('GET','/health',null,true) }catch(e){} }
+async function loadBrands(){
+  try{
+    const j = await api('GET','/brands');
+    const sel = document.getElementById('brand'); sel.innerHTML='';
+    (j.brands||[]).forEach(b=>{const o=document.createElement('option'); o.value=b.id; o.textContent=b.name+' ('+b.id.slice(0,8)+')'; sel.appendChild(o)});
+    if(!j.brands || !j.brands.length) out('No brands for this user yet. Create a brand in the DB first, then reload.');
+  }catch(e){}
+}
+function readFileAsB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+async function uploadAll(){
+  const files = document.getElementById('files').files;
+  if(!files.length){ out('Pick photos first.'); return; }
+  if(!brand()){ out('Pick a brand first.'); return; }
+  for(const f of files){
+    const b64 = await readFileAsB64(f);
+    try{
+      const j = await api('POST','/assets', {brand_id: brand(), kind:'photo', category: document.getElementById('cat').value, source_origin: document.getElementById('origin').value, production_method: document.getElementById('method').value, filename: f.name, content_base64: b64});
+      out('Uploaded '+f.name+' → '+j.id+' quarantined. Activate it below.');
+    }catch(e){ out('Upload failed for '+f.name+': '+e.message); return; }
+  }
+  listAssets();
+}
+async function listAssets(){
+  try{
+    const j = await api('GET','/assets');
+    const div = document.getElementById('assets'); div.innerHTML='';
+    const proj = document.getElementById('projectAssets'); proj.innerHTML='';
+    (j.assets||[]).forEach(a=>{
+      const d=document.createElement('div'); d.className='asset';
+      d.innerHTML = a.kind+' / '+a.category+' / '+a.source_origin+' / '+a.production_method+' / '+a.status+'<br><small>'+a.id+'</small> ';
+      if(a.status!=='active'){
+        const b=document.createElement('button'); b.textContent='Activate'; b.onclick=async()=>{ try{ await api('POST','/assets/'+a.id+'/activate', {}); listAssets(); }catch(e){} }; d.appendChild(b);
+      }
+      div.appendChild(d);
+      if(a.status==='active'){
+        const lab=document.createElement('label'); lab.innerHTML='<input type="checkbox" class="pa" value="'+a.id+'" style="width:auto"> '+a.category+' '+a.id.slice(0,8); proj.appendChild(lab);
+      }
+    });
+    if(!(j.assets||[]).length) div.textContent='No assets yet.';
+  }catch(e){}
+}
+async function createProject(){
+  const ids = Array.from(document.querySelectorAll('.pa:checked')).map(x=>x.value);
+  if(ids.length<3 || ids.length>6){ out('Pick 3-6 active assets.'); return; }
+  const durs = document.getElementById('durations').value.split(',').map(s=>parseFloat(s.trim())).filter(n=>!isNaN(n));
+  const shot_list = ids.map((_,i)=>({duration: durs[i]||2, role:'shot'}));
+  const blueprint = {hook_type: document.getElementById('hook').value, first_frame: document.getElementById('firstframe').value, shot_list, length: parseFloat(document.getElementById('length').value), cta: document.getElementById('cta').value, music: document.getElementById('music').value, recipe_name: document.getElementById('recipe').value};
+  try{
+    const j = await api('POST','/projects', {brand_id: brand(), blueprint, asset_ids: ids});
+    document.getElementById('projectId').value = j.project_id;
+  }catch(e){}
+}
+async function renderProject(){
+  const pid = document.getElementById('projectId').value;
+  if(!pid){ out('Create a project first.'); return; }
+  try{
+    const j = await api('POST','/projects/'+pid+'/render', {});
+    document.getElementById('jobId').value = j.job_id;
+    out('Render queued: '+j.job_id+'. Worker must be running on the backend. Check jobs until done, then List renders.');
+  }catch(e){}
+}
+async function checkJobs(){ try{ await api('GET','/jobs') }catch(e){} }
+async function listRenders(){
+  try{
+    const j = await api('GET','/renders');
+    const div = document.getElementById('renders'); div.innerHTML='';
+    (j.renders||[]).forEach(r=>{
+      const d=document.createElement('div'); d.className='asset';
+      d.innerHTML = 'Render '+r.id.slice(0,8)+' — '+r.file_path+'<br><small>'+JSON.stringify(r.origin_composition)+'</small> ';
+      const b=document.createElement('button'); b.textContent='Download MP4'; b.onclick=()=>downloadRender(r.id); d.appendChild(b);
+      const b2=document.createElement('button'); b2.className='secondary'; b2.textContent='Use for post'; b2.onclick=()=>{ document.getElementById('renderId').value=r.id; }; d.appendChild(b2);
+      div.appendChild(d);
+    });
+    if(!(j.renders||[]).length) div.textContent='No renders yet.';
+  }catch(e){}
+}
+async function downloadRender(id){
+  try{
+    const r = await fetch(base()+'/renders/'+id+'/file', {headers:{Authorization:'Bearer '+tok()}});
+    if(!r.ok){ out('Download failed: '+r.status+' '+(await r.text())); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'render-'+id+'.mp4'; a.click();
+    out('Download started for render '+id);
+  }catch(e){ out('Download failed: '+e.message); }
+}
+async function recordPost(){
+  try{
+    const j = await api('POST','/external_posts', {brand_id: brand(), render_id: document.getElementById('renderId').value, platform: document.getElementById('platform').value, platform_post_id: document.getElementById('postId').value, cta_keyword: document.getElementById('postCta').value, posted_by:'manual'});
+    document.getElementById('epId').value = j.external_post_id;
+  }catch(e){}
+}
+async function recordMetric(){
+  try{
+    await api('POST','/metric_snapshots', {external_post_id: document.getElementById('epId').value, views: parseInt(document.getElementById('views').value), avg_watch_time_sec: parseFloat(document.getElementById('watch').value), completion_rate: parseFloat(document.getElementById('completion').value), saves: parseInt(document.getElementById('saves').value), shares: parseInt(document.getElementById('shares').value)});
+  }catch(e){}
+}
+async function recordInquiry(){
+  try{
+    await api('POST','/inquiries', {brand_id: brand(), channel: document.getElementById('channel').value, cta_keyword: document.getElementById('inqCta').value, external_post_id: document.getElementById('epId').value||null, qualified: document.getElementById('qualified').checked, deposit_taken: document.getElementById('deposit').checked, notes: document.getElementById('notes').value});
+  }catch(e){}
+}
+async function weeklyReport(){
+  try{
+    const j = await api('GET','/weekly_report?brand_id='+encodeURIComponent(brand()));
+    document.getElementById('report').textContent = JSON.stringify(j,null,2);
+  }catch(e){}
+}
+</script>
+</body></html>
