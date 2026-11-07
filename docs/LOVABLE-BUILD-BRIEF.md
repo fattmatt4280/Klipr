@@ -13,6 +13,12 @@ replacement. The same split applies to Voicebox (see §7, separate).
 
 - BUILD IN LOVABLE: a web UI only — screens, forms, lists, downloads,
   and calls to the existing Klipr API. React/Vite, as Lovable builds it.
+  Build in a FRESH Lovable project (new project, connected to the
+  fattmatt4280/Klipr repo), NOT inside the existing dreamwebworkz.com
+  (DWW) Lovable project. DWW is Matt's personal command center; Klipr
+  is its own product. The API already owns klipr.dreamwebworkz.com,
+  so the UI needs its own address (Lovable URL for now, own subdomain
+  later).
 - DO NOT BUILD IN LOVABLE: any Python server, FFmpeg worker, systemd
   service, Postgres worker, Redis, or render engine. Lovable does not
   run those. Do not re-implement rendering in the browser.

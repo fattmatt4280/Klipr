@@ -60,7 +60,7 @@ class UserAuth:
         """Create a new token for a user_id, store only its hash, return
         the token once. Caller must deliver it securely to the user and
         never log it, never commit the file, and keep the file mode 600."""
-        token = secrets.token_urlsafe(32)
+        token = secrets.token_urlsafe(16)  # 22 chars, fits on one Termius line; 128-bit. Was (32)/43 chars, which wrapped and kept getting copied in pieces.
         data = self.load()
         data[token_hash(token)] = {"user_id": str(user_id), "is_admin": bool(is_admin)}
         self.token_file.write_text(json.dumps(data, indent=2) + "\n")
