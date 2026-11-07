@@ -100,6 +100,12 @@ Base `https://klipr.dreamwebworkz.com`, all Step 6 calls user-token only.
   when the thumbnail does not render.
 - `GET /assets` — own assets, with status (archived excluded).
   Active assets are the only ones selectable for a project.
+- `GET /assets/<id>/file` — download one asset's file (photo or
+  video clip) inline, with the correct Content-Type, so the app can
+  show thumbnails and previews. Bearer token, owner only. Do NOT
+  build a URL from the asset's `storage_path` — that is a
+  server-local relative path, not a URL, and it returns 404. Always
+  use this endpoint for thumbnails, the photo picker, and previews.
 - `POST /projects` — one project = one blueprint = one post.
   Blueprint keys, all required: hook_type, first_frame, shot_list,
   length, cta, music, recipe_name. shot_list is a non-empty list,

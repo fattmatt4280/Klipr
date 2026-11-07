@@ -75,6 +75,12 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self._cors(); self.send_header("Content-Type", "video/mp4")
         self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
+    def _send_inline_file(self, file_path, mime):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        self.send_response(200); self._cors(); self.send_header("Content-Type", mime)
+        self.send_header("Content-Disposition", "inline")
+        self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
     def do_OPTIONS(self):
         self.send_response(204); self._cors(); self.end_headers()
     def do_GET(self):
@@ -101,6 +107,31 @@ class H(BaseHTTPRequestHandler):
                 import os as _os
                 if not _os.path.exists(full): return self._send(404, {"error": "render file not found on backend storage"})
                 return self._send_file(full, f"render-{render_id}.mp4")
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+        # Step 6 asset file: user token only, asset must belong to the token user.
+        # Serves the original photo/video inline so the app can show thumbnails
+        # and previews. Archived (deleted) assets are not served.
+        if path.startswith("/assets/") and path.endswith("/file"):
+            auth = self._auth_user()
+            if not auth: return self._send(401, {"error": "unauthorized: user token required"})
+            user_id, is_admin = auth
+            if is_admin: return self._send(403, {"error": "admin token cannot download another user's private assets via Step 6 endpoints"})
+            asset_id = path.split("/")[2]
+            try:
+                conn = _conn()
+                with conn.cursor() as cur:
+                    s6.set_user_context(cur, user_id, False)
+                    cur.execute("SELECT storage_path, mime FROM assets WHERE id=%s AND user_id=%s AND status != 'archived'", (asset_id, user_id))
+                    row = cur.fetchone()
+                    if not row: return self._send(404, {"error": "asset not found"})
+                    storage_path, mime = row
+                    full = get_storage(CONFIG).get_path(storage_path)
+                import os as _os
+                if not _os.path.exists(full): return self._send(404, {"error": "asset file not found on backend storage"})
+                if not mime:
+                    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "mp4": "video/mp4", "mov": "video/quicktime"}.get(full.rsplit(".", 1)[-1].lower() if "." in full else "", "application/octet-stream")
+                return self._send_inline_file(full, mime)
             except Exception as e:
                 return self._send(500, {"error": str(e)})
         # Step 6 reads: user token only
