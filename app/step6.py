@@ -129,6 +129,22 @@ def activate_asset(conn, user_id, asset_id):
     return {"id": str(out[0]), "status": out[1]}
 
 
+def archive_asset(conn, user_id, asset_id):
+    """Soft-delete: set status='archived'. Only the owning user. The file stays on disk (renders that used it still work); re-uploading the same file reactivates it."""
+    with conn.cursor() as cur:
+        set_user_context(cur, user_id, False)
+        row = _check_asset_owner(cur, asset_id, user_id)
+        if not row:
+            raise ValueError("asset not found")
+        _id, _brand, _kind, category, source_origin, _method, _hash, status, _path = row
+        if status == "archived":
+            raise ValueError("asset already archived")
+        cur.execute("UPDATE assets SET status='archived' WHERE id=%s RETURNING id, status", (asset_id,))
+        out = cur.fetchone()
+    conn.commit()
+    return {"id": str(out[0]), "status": out[1]}
+
+
 def create_project(conn, user_id, brand_id, blueprint, asset_ids):
     if not isinstance(blueprint, dict):
         raise ValueError("blueprint must be an object")

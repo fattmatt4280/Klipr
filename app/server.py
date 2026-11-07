@@ -13,7 +13,7 @@ Protected endpoints require: Authorization: Bearer <token>
   The legacy admin token still works for legacy routes (audit / system),
   but Step 6 routes reject it: library operations must run as a real user,
   with Postgres session variables set transaction-locally from the token.
-CORS: only dreamwebworkz.com, *.lovable.app, and localhost (VM proof).
+CORS: only dreamwebworkz.com, *.lovable.app, *.lovableproject.com, and localhost (VM proof).
 Worker must run separately on the same server (app/worker.py) — this server
 enqueues jobs, it does not execute them inline.
 Usage: KLIPR_DATABASE_URL=... KLIPR_USER_TOKEN_FILE=... python3 -m app.server --port 8890
@@ -29,14 +29,14 @@ from app.storage import get_storage
 import app.queue as queue
 import app.step6 as s6
 
-ALLOWED_SUFFIXES = (".dreamwebworkz.com", "dreamwebworkz.com", ".lovable.app", "localhost", "127.0.0.1")
+ALLOWED_SUFFIXES = (".dreamwebworkz.com", "dreamwebworkz.com", ".lovable.app", ".lovableproject.com", "localhost", "127.0.0.1")
 
 def _allowed_origin(origin):
     if not origin: return None
     try:
         host = urlparse(origin).hostname or ""
     except Exception: return None
-    if host == "dreamwebworkz.com" or host.endswith(".lovable.app") or host in ("localhost", "127.0.0.1"):
+    if host == "dreamwebworkz.com" or host.endswith(".lovable.app") or host.endswith(".lovableproject.com") or host in ("localhost", "127.0.0.1"):
         return origin
     return None
 
@@ -113,7 +113,7 @@ class H(BaseHTTPRequestHandler):
                 with conn.cursor() as cur:
                     s6.set_user_context(cur, user_id, is_admin)
                     if path == "/assets":
-                        cur.execute("SELECT id, brand_id, kind, category, source_origin, production_method, hash_sha256, status, storage_path FROM assets WHERE user_id=%s ORDER BY created_at DESC LIMIT 100", (user_id,))
+                        cur.execute("SELECT id, brand_id, kind, category, source_origin, production_method, hash_sha256, status, storage_path FROM assets WHERE user_id=%s AND status != 'archived' ORDER BY created_at DESC LIMIT 100", (user_id,))
                         rows = [{"id": str(r[0]), "brand_id": str(r[1]), "kind": r[2], "category": r[3], "source_origin": r[4], "production_method": r[5], "hash_sha256": r[6], "status": r[7], "storage_path": r[8]} for r in cur.fetchall()]
                         return self._send(200, {"assets": rows})
                     if path == "/projects":
@@ -167,7 +167,7 @@ class H(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         # Step 6 writes: user token only
-        if path in ("/assets", "/projects", "/external_posts", "/metric_snapshots", "/inquiries") or path.startswith("/assets/") and path.endswith("/activate") or path.startswith("/projects/") and path.endswith("/render"):
+        if path in ("/assets", "/projects", "/external_posts", "/metric_snapshots", "/inquiries") or path.startswith("/assets/") and path.endswith("/activate") or path.startswith("/assets/") and path.endswith("/archive") or path.startswith("/projects/") and path.endswith("/render"):
             auth = self._auth_user()
             if not auth: return self._send(401, {"error": "unauthorized: user token required"})
             user_id, is_admin = auth
@@ -184,6 +184,10 @@ class H(BaseHTTPRequestHandler):
                 if path.startswith("/assets/") and path.endswith("/activate"):
                     asset_id = path.split("/")[2]
                     out = s6.activate_asset(conn, user_id, asset_id)
+                    return self._send(200, out)
+                if path.startswith("/assets/") and path.endswith("/archive"):
+                    asset_id = path.split("/")[2]
+                    out = s6.archive_asset(conn, user_id, asset_id)
                     return self._send(200, out)
                 if path == "/projects":
                     out = s6.create_project(conn, user_id, body["brand_id"], body["blueprint"], body.get("asset_ids", []))

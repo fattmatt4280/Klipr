@@ -92,8 +92,14 @@ Base `https://klipr.dreamwebworkz.com`, all Step 6 calls user-token only.
 - `POST /assets/<id>/activate` — quarantined → active. Enforces the
   tattoo gate and the duplicate-active-hash rule; show the API error
   text, do not swallow it.
-- `GET /assets` — own assets, with status. Active assets are the
-  only ones selectable for a project.
+- `POST /assets/<id>/archive` — soft-delete: sets the asset to
+  `archived` (owner only). Archived assets disappear from `GET
+  /assets`. The file stays on disk, so renders that used it still
+  work; re-uploading the same file reactivates it. Use this for the
+  Library delete button — it must work from the tile itself, even
+  when the thumbnail does not render.
+- `GET /assets` — own assets, with status (archived excluded).
+  Active assets are the only ones selectable for a project.
 - `POST /projects` — one project = one blueprint = one post.
   Blueprint keys, all required: hook_type, first_frame, shot_list,
   length, cta, music, recipe_name. shot_list is a non-empty list,
