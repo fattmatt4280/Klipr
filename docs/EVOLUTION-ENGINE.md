@@ -154,6 +154,36 @@ zero real performance data.
   figures in the ChatGPT conversation (127 patterns, 18 proposals, 4
   experiments, 12 approved) are illustrative, not live measurements.
 
+## The architectural test — for every significant new feature
+
+(Added 2026-11-08, from ChatGPT's response to this doc.)
+
+Before building any significant new feature, ask one question:
+
+**Does this feature move Klipr closer to becoming a self-optimizing
+creative intelligence platform?**
+
+It does not have to deliver that capability immediately. But it should do at
+least one of these:
+
+- Generate useful learning signals.
+- Improve creative execution.
+- Build reusable intelligence.
+- Enable controlled adaptation.
+- Improve measurable outcomes.
+
+If a feature does none of those, it is not moving Klipr toward the end goal
+— reconsider it, or defer it.
+
+## The real leap
+
+The long-term vision is not software that follows instructions better. It is
+software that learns, identifies opportunities, tests improvements, and
+evolves — and eventually **discovers improvements that neither its
+developers nor its users explicitly asked for**. That is the leap the
+Evolution Engine exists to make. Every phase (E1–E5) is a step toward making
+that destination increasingly inevitable, not just possible.
+
 ## Where this sits in the phase cycle
 
 This is the end goal — the destination the whole product is building toward.
