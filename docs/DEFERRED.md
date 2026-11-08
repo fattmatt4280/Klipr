@@ -60,3 +60,19 @@ own approval and its own milestone before it is built.
 - Managed Postgres paid tier, Contabo VPS deployment, DWW mount Publish.
   All remain gated on their own approvals (root reset, URL provision,
   offsite target approval).
+
+## Evolution Engine (2026-11-08, from Matt + ChatGPT conversation 2026-11-07)
+- Full plan at docs/EVOLUTION-ENGINE.md. Self-optimizing creative platform:
+  Creative Brain (makes videos) vs Evolution Brain (learns how to make them
+  better). Five phases E1–E5: behavioral instrumentation → personal
+  intelligence → adaptive workflows → experimentation → autonomous creative
+  intelligence (knowledge graph).
+- E1 (instrumentation) folds into the rebuild so data collection starts from
+  day one. E2 (personal intelligence) after the rebuild is live and Matt uses
+  it daily. E3–E5 deferred until there is real behavior data and real users —
+  E4 (experiments) is meaningless with one user, E5 (knowledge graph) needs
+  hundreds of published videos with measured outcomes.
+- Hard gates before any phase is trusted: rebuild done, validation loop
+  closed (video posted + metrics + inquiries), Library/generation/performance
+  capture reliable. Do not build on incomplete data.
+- Each phase needs its own go-ahead. Do not start E3–E5 without one.
