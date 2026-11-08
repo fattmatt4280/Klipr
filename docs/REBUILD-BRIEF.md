@@ -182,27 +182,30 @@ Field rules:
 ## 3. Interface spec — Voicebox API contract
 
 The Voicebox is the Contabo voice service (Qwen3-TTS 0.6B, zero-shot clone).
-It is NOT yet deployed on the VPS — the code is built and lives in
-`~/workspace/command-center/modules/voicebox/` (`server.py`, `voicebox.py`,
-`deploy-contabo.sh`, `termius-one-shot-install.sh`). Deploying it to Contabo is
-a required step of the rebuild, not something already live. (The live TTS at
-`tts.fridgespy.com` is Kokoro, the FridgeSpy TTS — a different service, not the
-Klipr voice-clone path. Do not confuse them.)
+It is DEPLOYED and live on the VPS at `https://voicebox.dreamwebworkz.com`
+(verified 2026-11-07: health `model_loaded: true`, Kratos speak test 200).
+The code lives in `~/workspace/command-center/modules/voicebox/`
+(`server.py`, `voicebox.py`). (The live TTS at `tts.fridgespy.com` is Kokoro,
+the FridgeSpy TTS — a different service, not the Klipr voice-clone path.
+Do not confuse them.)
 
 Verified from `server.py` (the contract below is the real one, not a guess):
 
 - Base: the Voicebox service on the VPS (default port `8765`, host
-  `127.0.0.1`). The app reaches it through the Contabo worker API base
+  `127.0.0.1`). Public: `https://voicebox.dreamwebworkz.com`. The app may
+  reach it directly (public URL) or through the Contabo worker API base
   (`https://klipr.dreamwebworkz.com`), which proxies `/voice/*` to the Voicebox
   (exact proxy path is a deploy detail; the contract below is what the proxy
   forwards). Do not expose the Voicebox port directly to the internet.
+  Note: the Voicebox has NO CORS headers, so a browser app must call it
+  through a server-side route (e.g. a Supabase Edge Function), not directly
+  from the frontend.
 - Auth: `Authorization: Bearer <secret>`. The secret lives in a file on the
   VPS (`VOICEBOX_SECRET_FILE`) and in Lovable Secrets for the app. Never in
   code, never in chat, never in a screenshot.
 - `GET /health` (no auth) → `{"ok": true, "model_loaded": bool}`.
 - `GET /voices` (auth) → `{"voices": [{"name": "...", "description": "..."}]}`.
-  The list is the manifest — the voices the service can clone. A voice is
-  added by adding a reference audio file + a manifest entry (see below).
+  The list is the manifest — the voices the service can clone.
 - `POST /speak` (auth) → raw audio bytes.
   - Request JSON body: `{"text": "<string, required, 1..1000 chars>", "voice": "<string, optional, default \"bella\", must be a voice in the manifest>"}`.
   - Query: `?format=wav|mp3` (default `wav`; `mp3` needs ffmpeg on the VPS PATH).
@@ -211,14 +214,42 @@ Verified from `server.py` (the contract below is the real one, not a guess):
     caches by sha256(voice + text), up to 2000 files).
   - Errors: `400` for missing/empty text, text over 1000 chars, or an unknown
     voice; `401` for a missing/invalid Bearer secret.
+- `POST /clone` (auth) → `{"name": ..., "description": ..., "file": ...,
+  "duration": ..., "source": "custom", "edits": {...}}` (201). Clone a voice
+  from a reference audio clip, with optional audio editing. The new voice is
+  usable by `/speak` immediately (no restart). No restrictions on which voice
+  or name may be cloned — only filesystem safety on the name and a 100 MB
+  upload cap. A name that already exists returns `409`.
+  - multipart/form-data: fields `name` (required), `description` (optional),
+    `audio` (required file: wav/mp3/m4a/ogg/...).
+  - ... or JSON: `{"name": ..., "description": ..., "audio_base64": ...,
+    "filename": ...}` (raw base64, no data URL prefix).
+  - Optional audio-editing params (form fields or JSON fields, all optional):
+    `isolate` (bool) — Demucs vocal isolation, pulls the voice out of
+    background noise/music (slow on CPU, ~5x realtime; the Demucs model
+    downloads on first use, ~81 MB, then cached). `speed` (0.25..4) — tempo
+    multiplier. `pitch` (-12..12) — semitones. `trim_start` / `trim_end`
+    (seconds). `volume` (0.1..4) — linear gain. `normalize` (bool) — dynamic
+    level normalization. The clip is normalized to mono 24kHz WAV (capped
+    at 60s) and added to the manifest. Errors: `400` bad name/audio/edit
+    params, `401` bad secret, `409` name already exists, `413` audio over
+    100 MB.
 - How a voice works (zero-shot clone): a voice name in the manifest maps to a
   reference audio file. The service builds a clone prompt (x-vector) from that
   reference audio and generates new speech in that voice. So the "reference
   audio ID / embedding" the app needs is simply the voice NAME — the app does
   not send audio or an embedding, it sends `voice: "<name>"`. To add Matt's
-  voice (or any new voice), add a clean reference recording + a manifest entry
-  on the VPS; the app then uses that name. There is a `--voice matt` slot
-  reserved for Matt's voice.
+  voice (or any new voice), use `POST /clone` from the app, or clone manually
+  on the VPS (see below). There is a `--voice matt` slot reserved for Matt's
+  voice.
+- Manual cloning / audio editing (VPS, Termius): the same editing is available
+  from the command line, so Matt can edit a sample and clone a voice by hand.
+  `voicebox.py edit --in <file> --out <file> [--isolate] [--speed X]
+  [--pitch N] [--trim-start S] [--trim-end E] [--volume V] [--normalize]`
+  edits a sample and writes the edited WAV (an audio editor, like the video
+  editor but for audio). `voicebox.py clone-from --wav <file> --name <name>
+  [--desc "..."]` + the same editing flags edits + clones in one step.
+  Run from `/root/voicebox` with the venv python.
 - Where the audio goes: after `POST /speak` returns the bytes, the caller
   (the app or the worker) uploads the audio to the Supabase `audio/` bucket
   at `audio/<user_id>/<voice_id>/<track_id>.mp3` (or `.wav`) and stores the key
@@ -227,6 +258,7 @@ Verified from `server.py` (the contract below is the real one, not a guess):
 - Limits (from the code): text max 1000 chars per call; requests are
   serialized (CPU inference, one at a time); the model loads once at startup.
   Keep voiceover scripts short (one call per clip/line, not a whole script).
+  Clone uploads are capped at 100 MB; the reference clip is capped at 60s.
 
 ## 4. Database changes
 
@@ -330,8 +362,11 @@ Only the file-location columns change:
   `GET /assets/<id>/file` (inline, correct MIME — built 2026-11-07, commit
   `adb7f65`, deployed to the VPS).
 - Voicebox contract: `~/workspace/command-center/modules/voicebox/server.py`
-  (`GET /health`, `GET /voices`, `POST /speak`, Bearer secret, text 1..1000,
-  voice from manifest, `?format=wav|mp3`). Not yet deployed on the VPS.
+  (`GET /health`, `GET /voices`, `POST /speak`, `POST /clone` with audio
+  editing — isolate/speed/pitch/trim/volume/normalize, Bearer secret,
+  text 1..1000, voice from manifest, `?format=wav|mp3`). Deployed and live
+  at `https://voicebox.dreamwebworkz.com` (verified 2026-11-07/08).
+  Manual cloning/editing: `voicebox.py edit` + `voicebox.py clone-from`.
 - Kokoro TTS (live, FridgeSpy): `tts.fridgespy.com`, systemd uvicorn `:8001`.
   Not the Klipr voice-clone path.
 - Supabase project: `qexvqansnxsohgpxhhvh` (29 tables, RLS). Storage buckets
