@@ -140,9 +140,10 @@ Brand import/scrape + walkthrough (Phase 4), full planning chat + brief card + I
 (Phase 2), CapCut-style editor + AI edit tools (Phase 3), avatars/voice cloning +
 consent flow, community/feed/remix/contests, MCP server/client, direct publishing +
 content calendar + coach, credits billing (flag OFF), public launch (Phase 7).
-Evolution Engine (docs/EVOLUTION-ENGINE.md, phases E1–E5) — a later phase,
-after the rebuild and the validation loop. E1 instrumentation folds into the
-rebuild; E2–E5 each need their own go-ahead.
+Evolution Engine (docs/EVOLUTION-ENGINE.md, phases E1–E5) — the END GOAL,
+the destination the product is building toward. A later phase, after the
+rebuild and the validation loop. E1 instrumentation folds into the rebuild;
+E2–E5 each need their own go-ahead.
 
 ## Order of work, once Matt gives go-ahead + location
 1. Lock stack + location.

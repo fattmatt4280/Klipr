@@ -1,7 +1,8 @@
 # Klipr Evolution Engine — phased to-do list
 
-Status: **DRAFT / DEFERRED — do not build until the gates below pass and Matt
-approves each phase.** This is a roadmap entry, not a build order.
+Status: **END GOAL / NORTH STAR — this is where Klipr is headed.** The
+phases below (E1–E5) are the path to get there, in order. Do not build a
+phase until its gates pass and Matt approves it.
 
 Source: Matt + ChatGPT conversation, 2026-11-07 (evening). Summarized and
 assessed by Muse 2026-11-08. The concept is sound; the sequencing below is
@@ -155,7 +156,9 @@ zero real performance data.
 
 ## Where this sits in the phase cycle
 
-After the rebuild and after the validation loop. It is NOT Phase 1, 2, 3,
-4, or 7 work. It is a later phase (E1–E5) that begins once the product
-works and has usage data. E1 (instrumentation) is folded into the rebuild
-so collection starts early; E2–E5 each need their own go-ahead.
+This is the end goal — the destination the whole product is building toward.
+It is NOT Phase 1, 2, 3, 4, or 7 work. It is a later phase (E1–E5) that
+begins once the product works and has usage data. E1 (instrumentation) is
+folded into the rebuild so collection starts early; E2–E5 each need their own
+go-ahead. The current work (rebuild, validation loop, manual editor) is the
+path to this end goal, not a detour from it.

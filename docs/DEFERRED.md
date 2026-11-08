@@ -61,10 +61,11 @@ own approval and its own milestone before it is built.
   All remain gated on their own approvals (root reset, URL provision,
   offsite target approval).
 
-## Evolution Engine (2026-11-08, from Matt + ChatGPT conversation 2026-11-07)
-- Full plan at docs/EVOLUTION-ENGINE.md. Self-optimizing creative platform:
-  Creative Brain (makes videos) vs Evolution Brain (learns how to make them
-  better). Five phases E1–E5: behavioral instrumentation → personal
+## Evolution Engine — END GOAL (2026-11-08, from Matt + ChatGPT conversation 2026-11-07)
+- This is where Klipr is headed — the destination, not a "maybe someday"
+  item. Full plan at docs/EVOLUTION-ENGINE.md. Self-optimizing creative
+  platform: Creative Brain (makes videos) vs Evolution Brain (learns how to
+  make them better). Five phases E1–E5: behavioral instrumentation → personal
   intelligence → adaptive workflows → experimentation → autonomous creative
   intelligence (knowledge graph).
 - E1 (instrumentation) folds into the rebuild so data collection starts from
