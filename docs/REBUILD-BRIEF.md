@@ -214,6 +214,27 @@ Verified from `server.py` (the contract below is the real one, not a guess):
     caches by sha256(voice + text), up to 2000 files).
   - Errors: `400` for missing/empty text, text over 1000 chars, or an unknown
     voice; `401` for a missing/invalid Bearer secret.
+- Async voiceover jobs — long scripts in the background (2026-11-08):
+  `POST /speak/jobs` (auth) → `202` with `{"job_id": "vjob_...",
+  "status": "queued", "total_parts": N, "created_at": "..."}`. The job runs
+  in the background even if the client disconnects. Request JSON:
+  `{"text": "<string, required unless chunks given, max 20000 chars>",
+  "voice": "<string, optional, default \"bella\">",
+  "format": "wav|mp3" (optional, default "wav"),
+  "split_chunks": bool (optional, default true),
+  "chunks": ["...", ...] (optional, pre-split by the caller)}`.
+  The server splits the text into chunks (max 1000 chars each, same as
+  /speak), generates each chunk, and stitches them with pauses (400ms after
+  `.` `!` `?`, 180ms after `,` `...`, 250ms otherwise). Jobs run one at a
+  time, FIFO. `GET /speak/jobs/<job_id>` (auth) → status + progress
+  (`{current_part, total_parts, percent}`) + `logs` + `error` +
+  `duration_seconds` (when completed) / `failed_part` (when failed).
+  `GET /speak/jobs/<job_id>/audio` (auth) → the finished audio bytes
+  (`audio/wav` or `audio/mpeg`); `404` unknown job, `409` not ready yet.
+  `DELETE /speak/jobs/<job_id>` (auth) → cancel a queued/processing job.
+  Job audio is kept in `/tmp/voicebox_jobs/` for 24h. Timing (CPU): roughly
+  7x realtime (a 60s voiceover takes ~7 minutes) — it is a background job,
+  the app polls and downloads when done.
 - `POST /clone` (auth) → `{"name": ..., "description": ..., "file": ...,
   "duration": ..., "source": "custom", "edits": {...}}` (201). Clone a voice
   from a reference audio clip, with optional audio editing. The new voice is
@@ -363,9 +384,13 @@ Only the file-location columns change:
   `adb7f65`, deployed to the VPS).
 - Voicebox contract: `~/workspace/command-center/modules/voicebox/server.py`
   (`GET /health`, `GET /voices`, `POST /speak`, `POST /clone` with audio
-  editing — isolate/speed/pitch/trim/volume/normalize, Bearer secret,
-  text 1..1000, voice from manifest, `?format=wav|mp3`). Deployed and live
-  at `https://voicebox.dreamwebworkz.com` (verified 2026-11-07/08).
+  editing — isolate/speed/pitch/trim/volume/normalize, `POST /speak/jobs`
+  + `GET /speak/jobs/<id>` + `GET /speak/jobs/<id>/audio` +
+  `DELETE /speak/jobs/<id>` for async long-script voiceovers, Bearer secret,
+  text 1..1000 per /speak call (20000 per job), voice from manifest,
+  `?format=wav|mp3`). Deployed and live
+  at `https://voicebox.dreamwebworkz.com` (verified 2026-11-07/08; jobs
+  endpoints built + tested locally 2026-11-08, deploy pending).
   Manual cloning/editing: `voicebox.py edit` + `voicebox.py clone-from`.
 - Kokoro TTS (live, FridgeSpy): `tts.fridgespy.com`, systemd uvicorn `:8001`.
   Not the Klipr voice-clone path.
